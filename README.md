@@ -31,6 +31,14 @@ All numbers are measured in this repository and reproducible with the commands s
 **Design targets** (pending vLLM integration): GPU utilization 65% → 85%,
 3× concurrent request capacity, −60% P99 SLA violations.
 
+<p align="center">
+  <img src="docs/assets/admit_rate.png" alt="Admit rate 31.3% to 100% with KV offloading" width="620">
+</p>
+
+<p align="center">
+  <img src="docs/assets/swap_latency.png" alt="Swap latency 0.62/0.50 ms vs 2 ms target" width="620">
+</p>
+
 ---
 
 ## How It Works
@@ -62,26 +70,45 @@ burn ~0.6 ms in latency alone. Instead:
 - A torch pinned-memory fallback covers the same operations when the compiled
   extension isn't present — same tests pass either way
 
+### Architecture
+
+```mermaid
+flowchart TD
+    A["vLLM Engine Loop"]
+    B["vllm_integration.py<br/><b>SwappingEngine</b><br/>submit / step / finish"]
+    S["scheduler_ref.py<br/>SLA/revenue priority<br/>admit · suspend · restore"]
+    Q["priority_queue_ref.py<br/>lazy-deletion min-heap"]
+    O["ops.py — <b>GPUContextSwapper</b><br/>pinned host pool, async D2H/H2D"]
+    K["csrc/context_swap_kernel.cu<br/>gather / scatter / zero"]
+    A -->|"submit / step / finish"| B
+    B --> S
+    S --> Q
+    B --> O
+    O -->|"compiled ext (or torch fallback)"| K
+    style B fill:#dbeafe,stroke:#0969da
+    style K fill:#dcfce7,stroke:#2da44e
 ```
-┌──────────────────────────────────────────────────────┐
-│                  vLLM Engine Loop                    │
-└──────────────────────┬───────────────────────────────┘
-                       │ submit / step / finish
-┌──────────────────────▼───────────────────────────────┐
-│  vllm_integration.py — SwappingEngine                │
-│  (admission control facade)                          │
-└──────────┬───────────────────────────┬───────────────┘
-           │                           │
-┌──────────▼─────────────┐  ┌──────────▼───────────────┐
-│ scheduler_ref.py       │  │ ops.py — GPUContextSwapper│
-│ SLA/revenue priority,  │  │ pinned host pool, async  │
-│ admit/suspend/restore  │  │ D2H / H2D                │
-│ priority_queue_ref.py  │  └──────────┬───────────────┘
-│ lazy-deletion heap     │             │
-└────────────────────────┘  ┌──────────▼───────────────┐
-                            │ csrc/context_swap_kernel │
-                            │ gather / scatter / zero  │
-                            └──────────────────────────┘
+
+### Swap-out under memory pressure
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant E as SwappingEngine
+    participant S as Scheduler
+    participant G as GPU
+    participant H as Pinned host RAM
+    C->>E: submit(premium request)
+    E->>S: batch full → select victim
+    Note over S: lowest priority wins;<br/>never a request with <100 ms SLA left
+    S-->>E: victim chosen, suspended
+    E->>G: gather victim's KV blocks → staging
+    G->>H: one contiguous cudaMemcpyAsync (0.62 ms / 4 MB)
+    E-->>C: premium request admitted
+    Note over E: slot frees later…
+    E->>H: async H2D → staging (0.50 ms)
+    E->>G: scatter blocks back to cache slots
+    Note over G: round-trip verified bit-exact
 ```
 
 ---
