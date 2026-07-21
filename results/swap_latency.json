@@ -1,0 +1,27 @@
+{
+  "backend": "cuda",
+  "benchmarks": [
+    {
+      "op": "reference_swap",
+      "num_blocks": 32,
+      "block_shape": [
+        8,
+        128
+      ],
+      "avg_save_ms": 0.0566,
+      "avg_restore_ms": 0.0395,
+      "p99_save_ms": 0.1098,
+      "p99_restore_ms": 0.0677
+    },
+    {
+      "op": "gpu_swap",
+      "num_blocks": 64,
+      "mb_per_swap": 4.0,
+      "avg_swap_out_ms": 0.6171,
+      "avg_swap_in_ms": 0.4964,
+      "p99_swap_out_ms": 1.8019,
+      "p99_swap_in_ms": 0.6576,
+      "target_2ms_pass": true
+    }
+  ]
+}

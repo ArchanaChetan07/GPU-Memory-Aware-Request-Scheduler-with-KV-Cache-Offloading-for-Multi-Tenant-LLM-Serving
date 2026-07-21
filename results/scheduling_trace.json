@@ -1,0 +1,26 @@
+{
+  "baseline": {
+    "num_requests": 1000,
+    "swapping_enabled": false,
+    "admitted": 313,
+    "rejected": 687,
+    "admit_rate_percent": 31.3,
+    "mean_utilization_percent": 95.9,
+    "suspended_at_end": 0,
+    "sla_met": 250,
+    "sla_missed": 0,
+    "sla_compliance_percent": 100.0
+  },
+  "with_swapping": {
+    "num_requests": 1000,
+    "swapping_enabled": true,
+    "admitted": 1000,
+    "rejected": 0,
+    "admit_rate_percent": 100.0,
+    "mean_utilization_percent": 95.9,
+    "suspended_at_end": 686,
+    "sla_met": 479,
+    "sla_missed": 0,
+    "sla_compliance_percent": 100.0
+  }
+}
