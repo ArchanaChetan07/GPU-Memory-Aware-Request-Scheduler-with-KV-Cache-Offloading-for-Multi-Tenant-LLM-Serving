@@ -1,6 +1,6 @@
 # GPU Memory-Aware Request Scheduler with KV-Cache Offloading for Multi-Tenant LLM Serving
 
-[![Tests](https://img.shields.io/badge/tests-47%20passing-brightgreen)]()
+[![CI](https://github.com/ArchanaChetan07/GPU-Memory-Aware-Request-Scheduler-with-KV-Cache-Offloading-for-Multi-Tenant-LLM-Serving/actions/workflows/ci.yml/badge.svg)](https://github.com/ArchanaChetan07/GPU-Memory-Aware-Request-Scheduler-with-KV-Cache-Offloading-for-Multi-Tenant-LLM-Serving/actions/workflows/ci.yml)
 [![CUDA](https://img.shields.io/badge/CUDA-12.x-76B900?logo=nvidia)]()
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C?logo=pytorch)]()
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python)]()
@@ -11,6 +11,16 @@ full, the lowest-priority request's KV cache is **offloaded to pinned host memor
 under a millisecond** and restored when a slot frees up — so requests queue instead of
 being rejected. Priority ordering balances SLA deadlines against revenue, with CUDA
 gather/scatter kernels doing the block movement.
+
+**The inference context:** during autoregressive decode, every active request holds
+paged KV-cache blocks — the keys and values its attention computation re-reads each
+generated token. That per-request state is what caps batch size long before compute
+saturates, and it's exactly what this scheduler moves. In
+[vLLM](https://github.com/vllm-project/vllm)-style **continuous batching**, requests
+join and leave the running batch every iteration; this project supplies the admission
+policy for that loop — *which* request gets the slot, *which* paged context gets
+evicted under memory pressure, and how to bring it back without violating the
+victim's SLA.
 
 ---
 
@@ -190,8 +200,15 @@ print(engine.stats())        # active / suspended / memory utilization
 - [x] CUDA gather/scatter kernels — round-trip verified, < 1 ms per 4 MB swap
 - [x] JIT build path + packaging
 - [ ] NVMe tier for cold contexts (pinned RAM as hot tier)
-- [ ] vLLM engine-loop integration
+- [ ] vLLM engine-loop integration (continuous-batching admission policy)
 - [ ] Production workload-trace replay + SLA A/B validation
+
+## Related Projects
+
+Part of a three-repo LLM inference optimization portfolio:
+
+- **[CUDA Speculative Decoding Optimizer](https://github.com/ArchanaChetan07/CUDA-Accelerated-Speculative-Decoding-Optimizer-for-LLM-Inference-PyTorch-vLLM-)** — deterministic draft ranking + soft-lock KV conflict resolution
+- **[INT4 KV-Cache Quantization + Fused Flash-Attention Kernels](https://github.com/ArchanaChetan07/INT4-KV-Cache-Quantization-with-Fused-Flash-Attention-CUDA-Kernels-for-LLM-Serving)** — warp-parallel fused attention, 3.9× kernel speedup, 4× KV compression
 
 ## License
 

@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-cpu:
+    name: CPU test suite (reference backend)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install CPU-only dependencies
+        run: |
+          pip install numpy pytest
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Run tests (GPU-gated tests skip automatically)
+        run: pytest tests/ -v
+      - name: Run workload simulation smoke test
+        run: python scripts/simulate_workload.py --requests 200
